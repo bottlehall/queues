@@ -6,9 +6,7 @@ public struct QueueName: Sendable {
     /// The name of the queue
     public let string: String
 
-    /// The maximum number of workers to run for this queue, or `nil` to use the global ``QueuesConfiguration/workerCount``.
-    ///
-    /// Set this to `1` to ensure jobs on this queue execute one at a time.
+    /// The maximum number of workers to run for this queue. If `nil`, uses ``QueuesConfiguration/workerCount``.
     public let workerCount: Int?
 
     /// Creates a new ``QueueName``

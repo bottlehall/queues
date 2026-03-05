@@ -107,13 +107,18 @@ extension Application.Queues {
     }
 }
 
+struct NoSuchJobError: Error { let id: JobIdentifier }
+
 struct TestQueue: Queue {
     let _context: NIOLockedValueBox<QueueContext>
     var context: QueueContext { self._context.withLockedValue { $0 } }
 
     func get(_ id: JobIdentifier) -> EventLoopFuture<JobData> {
         self._context.withLockedValue { context in
-            context.eventLoop.makeSucceededFuture(context.application.queues.test.jobs[id]!)
+            guard let job = context.application.queues.test.jobs[id] else {
+                return context.eventLoop.makeFailedFuture(NoSuchJobError(id: id))
+            }
+            return context.eventLoop.makeSucceededFuture(job)
         }
     }
 
@@ -150,7 +155,7 @@ struct AsyncTestQueue: AsyncQueue {
     let _context: NIOLockedValueBox<QueueContext>
     var context: QueueContext { self._context.withLockedValue { $0 } }
 
-    func get(_ id: JobIdentifier) async throws -> JobData { self._context.withLockedValue { $0.application.queues.asyncTest.jobs[id]! } }
+    func get(_ id: JobIdentifier) async throws -> JobData { try self._context.withLockedValue { guard let job = $0.application.queues.asyncTest.jobs[id] else { throw NoSuchJobError(id: id) }; return job } }
     func set(_ id: JobIdentifier, to data: JobData) async throws { self._context.withLockedValue { $0.application.queues.asyncTest.jobs[id] = data } }
     func clear(_ id: JobIdentifier) async throws { self._context.withLockedValue { $0.application.queues.asyncTest.jobs[id] = nil } }
     func pop() async throws -> JobIdentifier? { self._context.withLockedValue { $0.application.queues.asyncTest.queue.popLast() } }

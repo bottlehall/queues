@@ -11,11 +11,16 @@ public struct QueueName: Sendable {
 
     /// Creates a new ``QueueName``
     ///
+    /// - Parameter string: The name of the queue
+    public init(string: String) {
+        self.init(string: string, workerCount: nil)
+    }
+
     /// - Parameters:
-    ///   - string: The name of the queue.
-    ///   - workerCount: The maximum number of workers to run for this queue.
-    ///     Defaults to `nil`, which defers to the global ``QueuesConfiguration/workerCount``.
-    public init(string: String, workerCount: Int? = nil) {
+    ///   - string: The name of the queue
+    ///   - workerCount: The maximum number of workers to run for this queue. If `nil`, defaults to ``QueuesConfiguration/workerCount``.
+    ///      Set to `1` to run jobs sequentially.
+    public init(string: String, workerCount: Int?) {
         self.string = string
         self.workerCount = workerCount
     }

@@ -80,6 +80,13 @@ extension Application.Queues {
         public func contains<J: Job>(_ job: J.Type) -> Bool {
             self.first(job) != nil
         }
+
+        func popFirst() -> JobIdentifier? {
+            self.box.withLockedValue { box in
+                guard !box.queue.isEmpty else { return nil }
+                return box.queue.removeFirst()
+            }
+        }
     }
 
     struct TestQueueKey: StorageKey, LockKey {
@@ -133,8 +140,7 @@ struct TestQueue: Queue {
 
     func pop() -> EventLoopFuture<JobIdentifier?> {
         self._context.withLockedValue { context in
-            let last = context.application.queues.test.queue.popLast()
-            return context.eventLoop.makeSucceededFuture(last)
+            context.eventLoop.makeSucceededFuture(context.application.queues.test.popFirst())
         }
     }
 
@@ -153,6 +159,6 @@ struct AsyncTestQueue: AsyncQueue {
     func get(_ id: JobIdentifier) async throws -> JobData { self._context.withLockedValue { $0.application.queues.asyncTest.jobs[id]! } }
     func set(_ id: JobIdentifier, to data: JobData) async throws { self._context.withLockedValue { $0.application.queues.asyncTest.jobs[id] = data } }
     func clear(_ id: JobIdentifier) async throws { self._context.withLockedValue { $0.application.queues.asyncTest.jobs[id] = nil } }
-    func pop() async throws -> JobIdentifier? { self._context.withLockedValue { $0.application.queues.asyncTest.queue.popLast() } }
+    func pop() async throws -> JobIdentifier? { self._context.withLockedValue { $0.application.queues.asyncTest.popFirst() } }
     func push(_ id: JobIdentifier) async throws { self._context.withLockedValue { $0.application.queues.asyncTest.queue.append(id) } }
 }

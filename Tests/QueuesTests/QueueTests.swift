@@ -143,7 +143,7 @@ final class QueueTests: XCTestCase {
         XCTAssertEqual(self.app.queues.test.queue.count, 0)
         XCTAssertEqual(self.app.queues.test.jobs.count, 0)
 
-        await XCTAssertEqualAsync(try await promise1.futureResult.get(), "quux")
+        await XCTAssertEqualAsync(try await promise1.futureResult.get(), "bar")
         await XCTAssertEqualAsync(try await promise2.futureResult.get(), "baz")
     }
 
@@ -245,6 +245,26 @@ final class QueueTests: XCTestCase {
             promise.succeed()
         }
         try await promise.futureResult.get()
+    }
+
+    func testPerQueueWorkerCount() async throws {
+        let count = self.app.eventLoopGroup.any().makePromise(of: Int.self)
+        self.app.queues.use(custom: WorkerCountDriver(count: count))
+
+        let serialQueue = QueueName(string: "serial", workerCount: 1)
+        try self.app.queues.startInProcessJobs(on: serialQueue)
+        await XCTAssertEqualAsync(try await count.futureResult.get(), 1)
+    }
+
+    func testPerQueueWorkerCountClampedToGlobal() async throws {
+        let count = self.app.eventLoopGroup.any().makePromise(of: Int.self)
+        self.app.queues.use(custom: WorkerCountDriver(count: count))
+        self.app.queues.configuration.workerCount = 2
+
+        // Per-queue value exceeds the global limit; should be clamped to 2.
+        let queue = QueueName(string: "clamped", workerCount: 99)
+        try self.app.queues.startInProcessJobs(on: queue)
+        await XCTAssertEqualAsync(try await count.futureResult.get(), 2)
     }
 
     func testCustomWorkerCount() async throws {
@@ -512,6 +532,27 @@ final class QueueTests: XCTestCase {
         XCTAssertEqual(self.app.queues.test.jobs.count, 0)
     }
 
+    func testWorkerCount1ExecutesJobsSequentially() async throws {
+        let events = NIOLockedValueBox<[String]>([])
+        let allDone = self.app.eventLoopGroup.any().makePromise(of: Void.self)
+        let completedCount = ManagedAtomic<Int>(0)
+
+        self.app.queues.configuration.workerCount = 1
+        self.app.queues.add(SlowJob(events: events, completedCount: completedCount, allDone: allDone))
+
+        // Dispatch both jobs before starting the worker so they're already in the queue.
+        try await self.app.queues.queue.dispatch(SlowJob.self, .init(name: "A")).get()
+        try await self.app.queues.queue.dispatch(SlowJob.self, .init(name: "B")).get()
+
+        try self.app.queues.startInProcessJobs()
+
+        try await allDone.futureResult.get()
+
+        // With workerCount = 1 there is a single `while await runOneJob()` loop.
+        // Job A completes entirely before job B is even popped, proving sequential execution.
+        XCTAssertEqual(events.withLockedValue { $0 }, ["A started", "A finished", "B started", "B finished"])
+    }
+
     func testStuffThatIsntActuallyUsedAnywhere() {
         XCTAssertEqual(self.app.queues.queue(.default).key, "vapor_queues[default]")
         XCTAssertNotNil(QueuesEventLoopPreference.indifferent.delegate(for: self.app.eventLoopGroup))
@@ -641,6 +682,23 @@ struct TestingScheduledJob: ScheduledJob {
 struct AsyncTestingScheduledJob: AsyncScheduledJob {
     var count = ManagedAtomic<Int>(0)
     func run(context _: QueueContext) async throws { self.count.wrappingIncrement(ordering: .relaxed) }
+}
+
+struct SlowJob: AsyncJob {
+    struct Payload: Codable { let name: String }
+
+    let events: NIOLockedValueBox<[String]>
+    let completedCount: ManagedAtomic<Int>
+    let allDone: EventLoopPromise<Void>
+
+    func dequeue(_ context: QueueContext, _ payload: Payload) async throws {
+        self.events.withLockedValue { $0.append("\(payload.name) started") }
+        try await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        self.events.withLockedValue { $0.append("\(payload.name) finished") }
+        if self.completedCount.wrappingIncrementThenLoad(ordering: .relaxed) == 2 {
+            self.allDone.succeed(())
+        }
+    }
 }
 
 struct Foo1: Job {

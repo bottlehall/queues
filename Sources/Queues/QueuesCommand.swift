@@ -85,15 +85,16 @@ public final class QueuesCommand: AsyncCommand, Sendable {
     ///
     /// - Parameter queueName: The queue to run the jobs on
     public func startJobs(on queueName: QueueName) throws {
-        let workerCount: Int
+        let globalWorkerCount: Int
         switch self.application.queues.configuration.workerCount {
         case .default:
-            workerCount = self.application.eventLoopGroup.makeIterator().reduce(0, { n, _ in n + 1 })
-            self.application.logger.trace("Using default worker count", metadata: ["workerCount": "\(workerCount)"])
+            globalWorkerCount = self.application.eventLoopGroup.makeIterator().reduce(0, { n, _ in n + 1 })
+            self.application.logger.trace("Using default worker count", metadata: ["workerCount": "\(globalWorkerCount)"])
         case .custom(let custom):
-            workerCount = custom
-            self.application.logger.trace("Using custom worker count", metadata: ["workerCount": "\(workerCount)"])
+            globalWorkerCount = custom
+            self.application.logger.trace("Using custom worker count", metadata: ["workerCount": "\(globalWorkerCount)"])
         }
+        let workerCount = queueName.workerCount.map { min($0, globalWorkerCount) } ?? globalWorkerCount
 
         var tasks: [RepeatedTask] = []
         for eventLoop in self.application.eventLoopGroup.makeIterator().prefix(workerCount) {

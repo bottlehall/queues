@@ -182,6 +182,7 @@ public final class ScheduleBuilder: @unchecked Sendable {
     
     /// Retrieves the next date after the one given.
     public func nextDate(current: Date = .init()) -> Date? {
+        if let interval = self.interval { return current.addingTimeInterval(interval) }
         if let date = self.date, date > current { return date }
 
         var components = DateComponents()
@@ -202,11 +203,12 @@ public final class ScheduleBuilder: @unchecked Sendable {
     
     /// The calendar used to compute the next date
     var calendar: Calendar
-    
+
     /// Date to perform task (one-off job)
     var date: Date?
     var month: Month?, day: Day?, weekday: Weekday?
     var time: Time?, minute: Minute?, second: Second?, millisecond: Int?
+    var interval: TimeInterval?
 
     public init(calendar: Calendar = .current) { self.calendar = calendar }
 
@@ -236,4 +238,19 @@ public final class ScheduleBuilder: @unchecked Sendable {
 
     /// Runs a job every second
     public func everySecond() { self.millisecond = 0 }
+
+    /// Runs a job every given number of seconds
+    public func every(seconds: Int) { self.interval = TimeInterval(seconds) }
+
+    /// Runs a job every given number of minutes
+    public func every(minutes: Int) { self.interval = TimeInterval(minutes * 60) }
+
+    /// Runs a job every given number of hours
+    public func every(hours: Int) { self.interval = TimeInterval(hours * 3_600) }
+
+    /// Runs a job every given number of days
+    public func every(days: Int) { self.interval = TimeInterval(days * 86_400) }
+
+    /// Runs a job every given number of weeks
+    public func every(weeks: Int) { self.interval = TimeInterval(weeks * 604_800) }
 }

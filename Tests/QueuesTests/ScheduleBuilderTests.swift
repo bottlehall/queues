@@ -138,7 +138,44 @@ final class ScheduleBuilderTests: XCTestCase {
             Date(year: 2020, month: 5, day: 23, hour: 14, minute: 58)
         )
     }
-    
+
+    func testEveryWeeksBuilder() throws {
+        let builder = ScheduleBuilder()
+        builder.every(weeks: 3)
+        let now = Date(hour: 5, minute: 0)
+        XCTAssertEqual(builder.nextDate(current: now), Date(day: 22, hour: 5))
+    }
+
+    func testEveryDaysBuilder() throws {
+        let builder = ScheduleBuilder()
+        builder.every(days: 9)
+        let now = Date(hour: 5, minute: 0)
+        XCTAssertEqual(builder.nextDate(current: now), Date(day: 10, hour: 5))
+    }
+
+    func testEveryMinutesBuilder() throws {
+        let builder = ScheduleBuilder()
+        builder.every(minutes: 30)
+        let now = Date(hour: 5, minute: 0)
+        XCTAssertEqual(builder.nextDate(current: now), Date(hour: 5, minute: 30))
+        XCTAssertEqual(builder.nextDate(current: Date(hour: 5, minute: 30)), Date(hour: 6, minute: 0))
+    }
+
+    func testEveryHoursBuilder() throws {
+        let builder = ScheduleBuilder()
+        builder.every(hours: 5)
+        let now = Date(hour: 0, minute: 0)
+        XCTAssertEqual(builder.nextDate(current: now), Date(hour: 5, minute: 0))
+        XCTAssertEqual(builder.nextDate(current: Date(hour: 5, minute: 0)), Date(hour: 10, minute: 0))
+    }
+
+    func testEverySecondsBuilder() throws {
+        let builder = ScheduleBuilder()
+        builder.every(seconds: 90)
+        let now = Date(hour: 1, minute: 0, second: 0)
+        XCTAssertEqual(builder.nextDate(current: now), Date(hour: 1, minute: 1, second: 30))
+    }
+
     func testCustomCalendarBuilder() throws {
         let est = Calendar.calendar(timezone: "EST")
         let mst = Calendar.calendar(timezone: "MST")
